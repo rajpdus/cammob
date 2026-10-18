@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CamMob</title>
+<meta name="description" content="A native macOS viewer for CP Plus gCMOB / iCMOB recorders over P2P.">
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg:#f6f7fb; --fg:#15192b; --muted:#5b6275; --card:#ffffff; --accent:#1f5fd6; --border:#e1e4ec; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1118; --fg:#e8ebf3; --muted:#9aa3b8; --card:#161b26; --accent:#5b8dee; --border:#273041; } }
+  :root[data-theme="dark"] { --bg:#0e1118; --fg:#e8ebf3; --muted:#9aa3b8; --card:#161b26; --accent:#5b8dee; --border:#273041; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:48px 16px 64px; }
+  header { display:flex; align-items:center; gap:20px; flex-wrap:wrap }
+  header img { width:96px; height:96px; border-radius:22px }
+  h1 { margin:0; font-size:40px; letter-spacing:-0.02em }
+  .tag { color:var(--muted); margin:4px 0 0; font-size:18px }
+  .cta { display:flex; gap:12px; flex-wrap:wrap; margin:28px 0 }
+  .btn { display:inline-block; padding:10px 16px; border-radius:10px; background:var(--accent); color:#fff; text-decoration:none; font-weight:600 }
+  .btn.alt { background:transparent; color:var(--accent); border:1px solid var(--accent) }
+  pre { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; overflow:auto; font-size:14px }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace }
+  .shot { width:100%; border-radius:12px; border:1px solid var(--border); margin:8px 0 24px; display:block }
+  h2 { margin-top:36px; font-size:22px }
+  ul { padding-left:20px } li { margin:6px 0 }
+  footer { color:var(--muted); font-size:14px; margin-top:48px; border-top:1px solid var(--border); padding-top:16px }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.png" alt="CamMob icon">
+    <div>
+      <h1>CamMob</h1>
+      <p class="tag">Your CP Plus DVR, live on the Mac. The same P2P path as gCMOB / iCMOB, no port forwarding.</p>
+    </div>
+  </header>
+
+  <div class="cta">
+    <a class="btn" href="https://github.com/rajpdus/cammob/releases/latest">Download for macOS</a>
+    <a class="btn alt" href="https://github.com/rajpdus/cammob">Source on GitHub</a>
+  </div>
+
+  <img class="shot" src="screenshot.png" alt="CamMob: adding a recorder by its P2P serial number">
+
+  <h2>Install with Homebrew</h2>
+<pre><code>brew tap rajpdus/tap
+brew install --cask cammob</code></pre>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>Adds a recorder by its P2P serial number: scan the QR on the DVR with the Mac's camera, drop a photo, or import a gCMOB device card.</li>
+    <li>Connects through CP Plus's InstaOn cloud (or Dahua's Easy4ip) with a reliable PTCP tunnel, through the relay or a direct hole punch.</li>
+    <li>Shows every channel live in a grid, decoded in hardware (H.264 and H.265), with a protocol log for troubleshooting.</li>
+    <li>Keeps device passwords in the login Keychain. No accounts, no telemetry.</li>
+  </ul>
+
+  <h2>Requirements</h2>
+  <p>macOS 14 Sonoma or later on Apple Silicon. The app is ad-hoc signed: on first launch, right-click → Open.</p>
+
+  <footer>
+    CamMob is an independent open-source project (MIT), not affiliated with CP Plus, Aditya Infotech or Dahua.
+    Built by reverse engineering gCMOB with <a href="https://github.com/morluto/rea">REA</a>; see the repository's <code>re/NOTES.md</code>.
+  </footer>
+</main>
+</body>
+</html>

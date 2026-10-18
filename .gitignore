@@ -1,0 +1,11 @@
+.build/
+build/
+re/jadx/
+re/jadx.log
+re/reference/
+re/snapshots/
+.mcp.json
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.DS_Store
