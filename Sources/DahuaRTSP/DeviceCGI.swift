@@ -44,6 +44,12 @@ public final class DeviceCGI {
                 return r.body
             } catch let e as HTTPStatusError {
                 throw e
+            } catch let e as P2PError {
+                // A recorder that does not answer at all will not answer a retry either.
+                if case .timeout = e { throw e }
+                lastError = e
+                log?("http \(query): \(e); attempt \(attempt) of 3")
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             } catch {
                 lastError = error
                 log?("http \(query): \(error); attempt \(attempt) of 3")
@@ -113,7 +119,7 @@ public final class DeviceCGI {
         log?("http >>> GET \(path)")
         try conn.write(Data(req.utf8))
         var raw = Data()
-        let deadline = Date().addingTimeInterval(10)
+        let deadline = Date().addingTimeInterval(6)
         while Date() < deadline {
             guard let chunk = try await withThrowingTimeout(max(0.1, deadline.timeIntervalSinceNow), what: "http read", { await conn.read() }) else { break }
             raw.append(chunk)

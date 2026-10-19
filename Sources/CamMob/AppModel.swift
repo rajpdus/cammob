@@ -9,7 +9,7 @@ import DahuaRTSP
 final class ChannelSession: ObservableObject, Identifiable {
     let id: Int
     let channel: Int
-    let name: String
+    @Published var name: String
     let renderer = VideoRenderer()
     @Published var status: String = "idle"
     @Published var playing = false
@@ -131,9 +131,14 @@ final class AppModel: ObservableObject {
         open(d)
     }
 
+    /// Bumped on every open/close so a stale open task cannot touch a newer connection.
+    private var generation = 0
+
     func open(_ device: Device) {
         if tunnelDevice?.id == device.id, tunnel != nil, !(tunnel!.isClosed) { return }
         close()
+        generation += 1
+        let gen = generation
         selected = device
         UserDefaults.standard.set(device.id.uuidString, forKey: "cammob.lastDevice")
         connecting = true
@@ -147,6 +152,7 @@ final class AppModel: ObservableObject {
                 o.mode = device.transport
                 o.log = { [weak self] s in self?.logSink(s) }
                 let t = try await Tunnel.open(o)
+                guard gen == generation else { t.close(); return }   // user moved on meanwhile
                 t.onClosed = { [weak self] r in Task { @MainActor in self?.tunnelDropped(r) } }
                 tunnel = t
                 tunnelDevice = device
@@ -154,10 +160,31 @@ final class AppModel: ObservableObject {
                 let ms = Int((t.handshake.timings["sync"] ?? 0) * 1000)
                 tunnelStatus = "connected (\(t.handshake.mode.rawValue), \(ms) ms)"
                 appendLog("tunnel up: rtsp=\(t.rtspPort) priv=\(t.privatePort) http=\(t.httpPort)")
-                var list = device.channelInfo ?? (1...max(1, device.channels)).map { ChannelInfo(number: $0, name: "Channel \($0)") }
+                // Show what we know right away; the recorder's own channel list follows.
+                let known = device.channelInfo ?? (1...max(1, device.channels)).map { ChannelInfo(number: $0, name: "Channel \($0)") }
+                let start: ([ChannelInfo]) async -> Void = { [weak self] list in
+                    guard let self, gen == self.generation else { return }
+                    if Set(list.map(\.number)) == Set(self.channels.map(\.channel)) {
+                        // Same channels, maybe new names: keep the streams running.
+                        for ch in self.channels { ch.name = list.first { $0.number == ch.channel }?.name ?? ch.name }
+                        return
+                    }
+                    for ch in self.channels { ch.stop() }
+                    self.channels = list.map { ChannelSession(channel: $0.number, name: $0.name) }
+                    let sessions = self.channels
+                    let log: (String) -> Void = { [weak self] s in self?.logSink(s) }
+                    await withTaskGroup(of: Void.self) { group in
+                        for ch in sessions {
+                            group.addTask { await ch.start(tunnel: t, user: device.username, password: password, substream: device.substream, log: log) }
+                        }
+                    }
+                }
+                await start(known)
                 do {
                     // Ask the recorder which channels have a camera and what they are called.
-                    let found = try await DeviceCGI(tunnel: t, user: device.username, password: password, log: { [weak self] s in self?.logSink(s) }).channels()
+                    let cgi = DeviceCGI(tunnel: t, user: device.username, password: password, log: { [weak self] s in self?.logSink(s) })
+                    let found = try await withThrowingTimeout(12, what: "channel list") { try await cgi.channels() }
+                    guard gen == generation else { return }
                     appendLog("recorder reports \(found.count) channels: \(found.map { "\($0.number) \($0.name)" }.joined(separator: ", "))")
                     if found != device.channelInfo {
                         var d = device
@@ -167,13 +194,9 @@ final class AppModel: ObservableObject {
                         selected = d
                         tunnelDevice = d
                     }
-                    list = found
+                    await start(found)
                 } catch {
-                    appendLog("channel list unavailable (\(error)); using \(list.count) channels")
-                }
-                channels = list.map { ChannelSession(channel: $0.number, name: $0.name) }
-                for ch in channels {
-                    await ch.start(tunnel: t, user: device.username, password: password, substream: device.substream, log: { [weak self] s in self?.logSink(s) })
+                    appendLog("channel list unavailable (\(error)); using \(known.count) channels")
                 }
             } catch {
                 connecting = false
@@ -207,6 +230,7 @@ final class AppModel: ObservableObject {
     }
 
     func close() {
+        generation += 1
         UserDefaults.standard.removeObject(forKey: "cammob.lastDevice")
         for ch in channels { ch.stop() }
         channels = []
