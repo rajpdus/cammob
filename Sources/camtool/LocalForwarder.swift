@@ -31,7 +31,9 @@ final class LocalForwarder {
                     while let d = await realm.read() {
                         client.send(content: d, completion: .contentProcessed { _ in })
                     }
-                    client.cancel()
+                    // Flush queued sends before closing; cancel() alone drops them.
+                    client.send(content: nil, contentContext: .finalMessage, isComplete: true,
+                                completion: .contentProcessed { _ in client.cancel() })
                 }
                 // client → device
                 func pump() {

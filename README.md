@@ -23,6 +23,10 @@ NAT with no port forwarding, DDNS or VPN. Video is pulled over RTSP inside the P
 tunnel and decoded in hardware. Nothing but the serial number and the device login is
 needed; the password stays in your login Keychain.
 
+Because the app is signed ad hoc (no Apple Developer ID), macOS treats each update as a
+new program and asks once whether CamMob may read the password from your Keychain.
+Click **Always Allow** and the window appears.
+
 ## Install
 
 ```sh
@@ -43,7 +47,9 @@ Requires macOS 14 (Sonoma) or later on Apple Silicon.
    menu, up to the Mac's camera. A photo dropped onto the sheet, an image file, or the
    clipboard works too. A gCMOB *device card* QR (Device Manager → export) fills in the
    name, user, password and channel count as well.
-3. Enter the device username / password and the number of channels, then **Add**.
+3. Enter the device username / password, then **Add**. On the first connection CamMob
+   asks the recorder which channels have a camera and uses the recorder's channel names;
+   the channel count in the sheet is only used until then.
 4. Select the device in the sidebar. Each channel tile shows its state; double-click a
    tile to enlarge it. The toolbar's list icon opens the protocol log.
 
@@ -58,6 +64,7 @@ from its Edit sheet.
 swift run camtool probe  <SERIAL>                              # cloud lookup, device ports
 swift run camtool stream <SERIAL> -u admin -c 1 -s 1 -n 100 -o ch1.h265   # save raw frames
 swift run camtool tunnel <SERIAL> -u admin -l 1554             # expose the DVR's RTSP locally
+swift run camtool channels <SERIAL> -u admin                     # channel list and names from the recorder
 ffplay -rtsp_transport tcp "rtsp://admin:PASS@127.0.0.1:1554/cam/realmonitor?channel=1&subtype=1"
 swift run camtool qr photo.jpg                                 # decode a device QR
 ```
@@ -105,9 +112,10 @@ It builds on the MIT-licensed work of
 ## Status
 
 Verified on a CP Plus NVR (firmware 6.7.30) added by InstaOn serial number, streaming
-H.265 through the relay. Devices registered with Dahua's own Easy4ip cloud are supported
-by the same code path. Not yet implemented: playback, PTZ, audio, two-way talk, alarms,
-and channel names from the recorder.
+H.265 through the relay. On connect, CamMob asks the recorder which channels have a
+camera and uses the recorder's channel names. Devices registered with Dahua's own
+Easy4ip cloud are supported by the same code path. Not yet implemented: playback, PTZ,
+audio, two-way talk and alarms.
 
 ## Disclaimer
 

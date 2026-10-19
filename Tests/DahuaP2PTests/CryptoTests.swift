@@ -216,3 +216,78 @@ final class DeviceCardTests: XCTestCase {
         XCTAssertEqual(protected.first?.serial, "5G0TESTSERIAL01")
     }
 }
+
+final class DeviceCGITests: XCTestCase {
+    func testChannelTitle() {
+        let t = "table.ChannelTitle[0].Name=Front\ntable.ChannelTitle[1].Name=CP IP Cam\ntable.ChannelTitle[2].Name=Channel3\n"
+        let c = DeviceCGI.parseChannelTitle(t)
+        XCTAssertEqual(c.map(\.number), [1, 2, 3])
+        XCTAssertEqual(c[0].name, "Front")
+    }
+
+    func testCameraAllOnlyEnabled() {
+        let t = """
+        camera[0].DeviceInfo.VideoInputs[0].Name=Channel1
+        camera[0].Enable=true
+        camera[0].Type=Remote
+        camera[0].UniqueChannel=0
+        camera[1].DeviceInfo.VideoInputs[0].Name=Gate
+        camera[1].Enable=true
+        camera[1].Type=Remote
+        camera[1].UniqueChannel=5
+        camera[2].DeviceInfo.VideoInputs[0].Name=Channel7
+        camera[2].Enable=false
+        camera[2].Type=Remote
+        camera[2].UniqueChannel=6
+        camera[3].Type=Compose
+        camera[3].UniqueChannel=41
+        """
+        let titles = [ChannelInfo(number: 1, name: "Front")]
+        let c = DeviceCGI.parseCameraAll(t, titles: titles)
+        XCTAssertEqual(c.map(\.number), [1, 6])
+        XCTAssertEqual(c.map(\.name), ["Front", "Gate"])
+    }
+
+    func testHTTPParse() {
+        let raw = Data("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Digest realm=\"r\", qop=\"auth\", nonce=\"n\"\r\nCONTENT-LENGTH: 0\r\n\r\n".utf8)
+        let r = DeviceCGI.parse(raw)
+        XCTAssertEqual(r?.code, 401)
+        XCTAssertEqual(r?.headers["content-length"], "0")
+        XCTAssertTrue(r?.headers["www-authenticate"]?.hasPrefix("Digest") ?? false)
+    }
+}
+
+final class PTCPReassemblyTests: XCTestCase {
+    private func collect(_ feed: (PTCPSession) -> Void) -> [PTCP.Body] {
+        let s = PTCPSession(transmit: { _ in })
+        var got: [PTCP.Body] = []
+        let lock = NSLock()
+        s.onBody = { b in lock.withLock { got.append(b) } }
+        feed(s)
+        Thread.sleep(forTimeInterval: 0.2)
+        return lock.withLock { got }
+    }
+
+    private func payloads(_ bodies: [PTCP.Body]) -> [String] {
+        bodies.compactMap { if case .data(_, let d) = $0 { return String(decoding: d, as: UTF8.self) } else { return nil } }
+    }
+
+    func testTwoBodiesInOneDatagram() {
+        let body = PTCP.dataBody(realm: 1, Data("AAA".utf8)) + PTCP.dataBody(realm: 1, Data("BBBB".utf8))
+        let got = collect { s in
+            _ = s.input(PTCP.Packet(sent: 0, recv: 0, pid: 1, lmid: 1, rmid: 1, body: body).encode())
+        }
+        XCTAssertEqual(payloads(got), ["AAA", "BBBB"])
+    }
+
+    func testBodySplitAcrossDatagramsAndOverlap() {
+        let body = PTCP.dataBody(realm: 1, Data("0123456789".utf8))
+        let first = body.subdata(in: 0..<15), second = body.subdata(in: 15..<body.count)
+        let got = collect { s in
+            _ = s.input(PTCP.Packet(sent: 0, recv: 0, pid: 1, lmid: 1, rmid: 1, body: first).encode())
+            // Retransmit that starts inside already-received bytes and completes the body.
+            _ = s.input(PTCP.Packet(sent: 10, recv: 0, pid: 1, lmid: 1, rmid: 1, body: body.subdata(in: 10..<15) + second).encode())
+        }
+        XCTAssertEqual(payloads(got), ["0123456789"])
+    }
+}

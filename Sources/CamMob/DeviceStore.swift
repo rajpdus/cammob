@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import DahuaP2P
+import DahuaRTSP
 
 struct Device: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
@@ -10,6 +11,8 @@ struct Device: Identifiable, Codable, Hashable {
     var channels: Int = 4
     var substream: Bool = true
     var mode: String = TransportMode.relay.rawValue
+    /// Channels as last reported by the recorder (nil until the first connection).
+    var channelInfo: [ChannelInfo]? = nil
 
     var transport: TransportMode { TransportMode(rawValue: mode) ?? .relay }
 }

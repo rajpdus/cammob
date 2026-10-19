@@ -108,7 +108,7 @@ struct ChannelTile: View {
             VideoLayerView(renderer: session.renderer)
             HStack(spacing: 6) {
                 Circle().fill(session.playing ? Color.green : Color.orange).frame(width: 8, height: 8)
-                Text("CH \(session.channel)").bold()
+                Text("\(session.channel) · \(session.name)").bold().lineLimit(1)
                 if session.playing { Text("\(session.kbps) kbit/s") } else { Text(session.status).lineLimit(1) }
             }
             .font(.caption)
@@ -173,7 +173,11 @@ struct DeviceSheet: View {
                 TextField("Serial number (P2P SN)", text: $serial).textFieldStyle(.roundedBorder)
                 TextField("Username", text: $username)
                 SecureField("Password", text: $password)
-                Stepper("Channels: \(channels)", value: $channels, in: 1...64)
+                if let info = device?.channelInfo {
+                    Text("Channels: \(info.count) (reported by the recorder)")
+                } else {
+                    Stepper("Channels: \(channels) (detected on first connection)", value: $channels, in: 1...64)
+                }
                 Toggle("Use sub stream (lower bandwidth)", isOn: $substream)
                 Picker("Transport", selection: $mode) {
                     Text("Relay (works behind CGNAT/4G)").tag(TransportMode.relay)

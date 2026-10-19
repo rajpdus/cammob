@@ -9,21 +9,42 @@ import DahuaRTSP
 final class ChannelSession: ObservableObject, Identifiable {
     let id: Int
     let channel: Int
+    let name: String
     let renderer = VideoRenderer()
     @Published var status: String = "idle"
     @Published var playing = false
     @Published var frames = 0
     @Published var kbps = 0
     private var rtsp: RTSPClient?
+    private var stopped = false
     private var bytes = 0
     private var lastRate = Date()
 
-    init(channel: Int) {
+    init(channel: Int, name: String) {
         self.id = channel
         self.channel = channel
+        self.name = name
     }
 
     func start(tunnel: Tunnel, user: String, password: String, substream: Bool, log: @escaping (String) -> Void) async {
+        stopped = false
+        for attempt in 1...3 {
+            if stopped { return }
+            // Some cameras never answer a DESCRIBE for their sub stream; fall back to the main stream.
+            let sub = substream && attempt == 1
+            if await startOnce(tunnel: tunnel, user: user, password: password, substream: sub, log: log) {
+                if substream && !sub { log("channel \(channel): using main stream") }
+                return
+            }
+            if attempt == 3 || stopped { return }
+            log("channel \(channel): \(status); retry \(attempt)\(substream ? " on main stream" : "")")
+            rtsp?.close(); rtsp = nil
+            status = "retrying…"
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+        }
+    }
+
+    private func startOnce(tunnel: Tunnel, user: String, password: String, substream: Bool, log: @escaping (String) -> Void) async -> Bool {
         status = "connecting…"
         do {
             let conn = try await tunnel.connect(port: UInt32(tunnel.rtspPort))
@@ -56,13 +77,16 @@ final class ChannelSession: ObservableObject, Identifiable {
             }
             let track = try await client.start()
             status = "waiting for \(track.codec.rawValue)…"
+            return true
         } catch {
             status = "\(error)"
             playing = false
+            return false
         }
     }
 
     func stop() {
+        stopped = true
         rtsp?.close()
         rtsp = nil
         playing = false
@@ -114,8 +138,10 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(device.id.uuidString, forKey: "cammob.lastDevice")
         connecting = true
         tunnelStatus = "connecting to \(device.serial) via \(device.transport.rawValue)…"
-        let password = store.password(for: device)
         Task {
+            // Keychain may show an access prompt (the app is ad-hoc signed, so each update is a
+            // new code identity); read it off the main actor so the window still appears.
+            let password = await Task.detached { [store] in store.password(for: device) }.value
             do {
                 var o = Tunnel.Options(serial: device.serial, username: device.username, password: password)
                 o.mode = device.transport
@@ -128,7 +154,24 @@ final class AppModel: ObservableObject {
                 let ms = Int((t.handshake.timings["sync"] ?? 0) * 1000)
                 tunnelStatus = "connected (\(t.handshake.mode.rawValue), \(ms) ms)"
                 appendLog("tunnel up: rtsp=\(t.rtspPort) priv=\(t.privatePort) http=\(t.httpPort)")
-                channels = (1...max(1, device.channels)).map { ChannelSession(channel: $0) }
+                var list = device.channelInfo ?? (1...max(1, device.channels)).map { ChannelInfo(number: $0, name: "Channel \($0)") }
+                do {
+                    // Ask the recorder which channels have a camera and what they are called.
+                    let found = try await DeviceCGI(tunnel: t, user: device.username, password: password, log: { [weak self] s in self?.logSink(s) }).channels()
+                    appendLog("recorder reports \(found.count) channels: \(found.map { "\($0.number) \($0.name)" }.joined(separator: ", "))")
+                    if found != device.channelInfo {
+                        var d = device
+                        d.channelInfo = found
+                        d.channels = found.count
+                        store.update(d, password: nil)
+                        selected = d
+                        tunnelDevice = d
+                    }
+                    list = found
+                } catch {
+                    appendLog("channel list unavailable (\(error)); using \(list.count) channels")
+                }
+                channels = list.map { ChannelSession(channel: $0.number, name: $0.name) }
                 for ch in channels {
                     await ch.start(tunnel: t, user: device.username, password: password, substream: device.substream, log: { [weak self] s in self?.logSink(s) })
                 }

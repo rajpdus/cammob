@@ -105,6 +105,25 @@ then HMAC-SHA256 over nonce ‖ date ‖ payload, base64. After the device joins
 app sends SYNC only (no 0x17/0x19 token auth) and tries a STUN punch to the device's
 public address; behind CGNAT that fails and the relay carries the stream.
 
+## Channel list and names: the recorder's CGI over the tunnel
+
+The device's HTTP port (from `/info/device`, normally 80) is reachable as another PTCP
+realm. Its Dahua-style CGI answers with Digest auth (`qop=auth`) and `Connection: close`,
+so each request is one realm. `LogicDeviceManager.cgi?action=getCameraAll` lists every
+slot with `UniqueChannel`, `Enable` and `Type` (`Remote`, `Local`, or `Compose` for the
+multi-view pseudo channel); `configManager.cgi?action=getConfig&name=ChannelTitle` gives
+the names. CamMob shows the enabled, non-Compose slots. An 8-slot NVR with 6 cameras
+therefore shows 6 tiles, not the 4 the gCMOB device card claimed.
+
+Under load the device's retransmissions showed that PTCP sequence numbers count bytes:
+a retransmitted datagram may bundle several bodies or start inside one. The receiver
+now reassembles a byte stream and frames bodies by their 12-byte length header (SYNC
+and the 0x17–0x1B handshake commands have no length and stay one per datagram).
+Before that fix, long CGI replies were silently truncated at datagram boundaries.
+
+Some cameras never answer an RTSP `DESCRIBE` for `subtype=1`; the main stream works.
+CamMob retries a failed channel and falls back to the main stream.
+
 ## Not done / caveats
 
 * Validated live against a CP Plus NVR (fw 6.7.30, InstaOn): relay tunnel, RTSP sub stream,

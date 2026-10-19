@@ -7,6 +7,7 @@ import DahuaRTSP
 //   camtool probe  <SERIAL>                              handshake only, print device info
 //   camtool stream <SERIAL> -u USER -p PASS [-c 1] [-s 1] [-n 50] [-o out.h264]
 //   camtool tunnel <SERIAL> [-u USER -p PASS] -l 1554 [-r 554]   expose a device port on 127.0.0.1
+//   camtool channels <SERIAL> -u USER -p PASS              list channels and names via the recorder's CGI
 // Options: -m relay|direct (default relay), -v (verbose protocol trace)
 
 struct Args {
@@ -60,7 +61,7 @@ func parseArgs() -> Args {
 func usage() -> Never {
     FileHandle.standardError.write(Data("""
     usage: camtool qr <image.png|jpg>
-           camtool probe|stream|tunnel <SERIAL> [-u USER] [-p PASS|$CAM_PASSWORD] [-c CH] [-s SUBTYPE] [-n FRAMES] [-o FILE] [-l LOCALPORT] [-r REMOTEPORT] [-m relay|direct] [-C instaon|easy4ip|auto] [-v]\n
+           camtool probe|stream|tunnel|channels <SERIAL> [-u USER] [-p PASS|$CAM_PASSWORD] [-c CH] [-s SUBTYPE] [-n FRAMES] [-o FILE] [-l LOCALPORT] [-r REMOTEPORT] [-m relay|direct] [-C instaon|easy4ip|auto] [-v]\n
     """.utf8))
     exit(2)
 }
@@ -166,6 +167,11 @@ Task {
             let track = try await rtsp.start()
             log("playing \(track.codec.rawValue) (pt \(track.payloadType), \(track.paramSets.count) param sets)")
             return
+        case "channels":
+            let cgi = DeviceCGI(tunnel: tunnel, user: args.user ?? "admin", password: args.pass ?? "", log: args.verbose ? { log($0) } : nil)
+            if let type = try? await cgi.get("magicBox.cgi?action=getDeviceType") { log(type.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            for c in try await cgi.channels() { print("channel=\(c.number) name=\(c.name)") }
+            tunnel.close()
         case "tunnel":
             let server = try LocalForwarder(port: args.localPort, remotePort: args.remotePort, tunnel: tunnel, log: log)
             log("listening on 127.0.0.1:\(args.localPort) → device:\(args.remotePort); e.g. ffplay -rtsp_transport tcp \"rtsp://USER:PASS@127.0.0.1:\(args.localPort)/cam/realmonitor?channel=1&subtype=1\"")

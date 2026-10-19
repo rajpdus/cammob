@@ -63,6 +63,8 @@ public enum PTCP {
         return d
     }
 
+    /// Body types whose 12-byte header carries the payload length.
+    static let framedTypes: Set<UInt8> = [BodyType.data, BodyType.bind, BodyType.status, BodyType.heartbeat]
     public static func syncBody() -> Data { Data([0x00, 0x03, 0x01, 0x00]) }
     public static func heartbeatBody() -> Data { typeHeader(BodyType.heartbeat, len: 0, realm: 0) }
     public static func dataBody(realm: UInt32, _ data: Data) -> Data {
@@ -168,6 +170,9 @@ public final class PTCPSession {
     private var outstanding: [Outstanding] = []
     private var rcvNext: UInt32 = 0
     private var early: [UInt32: Data] = [:]
+    private var inbox = Data()
+    /// Set PTCP_TRACE=1 to log every received packet.
+    static let trace = ProcessInfo.processInfo.environment["PTCP_TRACE"] != nil
     private var lastPeerLmid: UInt32 = 0
     private var ackPending = false
     private var timer: DispatchSourceTimer?
@@ -261,6 +266,9 @@ public final class PTCPSession {
     private func inputLocked(_ p: PTCP.Packet) {
         if closedReason != nil { return }
         stats.datagramsIn += 1
+        if PTCPSession.trace, !p.body.isEmpty {
+            log?("ptcp in sent=\(p.sent) recv=\(p.recv) len=\(p.body.count) type=0x\(String(p.body[p.body.startIndex], radix: 16)) rcvNext=\(rcvNext)")
+        }
         lastHeardAt = Date()
         lastPeerLmid = p.lmid
         onPeerAck(p.recv)
@@ -285,7 +293,7 @@ public final class PTCPSession {
             let end = p.sent &+ len
             if PTCP.seqAfter(end, rcvNext) {
                 let skip = Int(rcvNext &- p.sent)
-                accept(p.body.subdata(in: (p.body.startIndex + skip)..<p.body.endIndex), partial: true)
+                accept(p.body.subdata(in: (p.body.startIndex + skip)..<p.body.endIndex))
             } else {
                 stats.duplicatesIn += 1
             }
@@ -293,10 +301,25 @@ public final class PTCPSession {
         }
     }
 
-    private func accept(_ body: Data, partial: Bool = false) {
-        rcvNext &+= UInt32(body.count)
-        if partial { return }
-        onBody?(PTCP.parseBody(body))
+    /// The peer numbers bytes, not bodies: a retransmitted datagram may bundle several
+    /// bodies or start mid-body, so received bytes are reassembled as a stream and
+    /// framed by each body's own length header.
+    private func accept(_ bytes: Data) {
+        rcvNext &+= UInt32(bytes.count)
+        inbox.append(bytes)
+        while !inbox.isEmpty {
+            let type = inbox[inbox.startIndex]
+            guard PTCP.framedTypes.contains(type) else {
+                // SYNC and handshake commands carry no usable length; one per datagram.
+                let b = inbox; inbox = Data(); onBody?(PTCP.parseBody(b)); return
+            }
+            guard inbox.count >= 12 else { return }
+            let total = 12 + Int(inbox.u32(0) & 0xffffff)
+            guard inbox.count >= total else { return }
+            let b = inbox.subdata(in: inbox.startIndex..<(inbox.startIndex + total))
+            inbox = inbox.subdata(in: (inbox.startIndex + total)..<inbox.endIndex)
+            onBody?(PTCP.parseBody(b))
+        }
     }
 
     private func onPeerAck(_ ack: UInt32) {

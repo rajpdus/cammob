@@ -442,7 +442,7 @@ final class RawWaiter {
 
 /// Runs `body` with a deadline. On timeout the body's task is cancelled and
 /// `P2PError.timeout(what)` is thrown.
-func withThrowingTimeout<T: Sendable>(_ seconds: TimeInterval, what: String, _ body: @escaping @Sendable () async throws -> T) async throws -> T {
+public func withThrowingTimeout<T: Sendable>(_ seconds: TimeInterval, what: String, _ body: @escaping @Sendable () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await body() }
         group.addTask {

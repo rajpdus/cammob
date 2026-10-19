@@ -214,6 +214,7 @@ public final class Tunnel {
                 lock.lock(); let c = pendingBinds.removeValue(forKey: realmID); lock.unlock()
                 c?.resume(returning: true)
             } else if status == "DISC" {
+                log?("realm \(String(realmID, radix: 16)) DISC from device")
                 lock.lock()
                 let bind = pendingBinds.removeValue(forKey: realmID)
                 let disc = pendingDiscs.removeValue(forKey: realmID)
