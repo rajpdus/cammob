@@ -291,3 +291,12 @@ final class PTCPReassemblyTests: XCTestCase {
         XCTAssertEqual(payloads(got), ["0123456789"])
     }
 }
+
+final class DeviceCGITruncationTests: XCTestCase {
+    func testShortBodyIsDetectedFromContentLength() {
+        let raw = Data("HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 100\r\n\r\ncamera[0].Enable=true\n".utf8)
+        let r = DeviceCGI.parse(raw)!
+        let want = r.headers["content-length"].flatMap(Int.init)!
+        XCTAssertLessThan(r.body.utf8.count, want)
+    }
+}

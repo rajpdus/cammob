@@ -183,6 +183,23 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Switches every channel between the main (HD) and sub (SD) stream and remembers it.
+    func setHD(_ hd: Bool) {
+        guard var d = selected, d.substream == hd else { return }
+        d.substream = !hd
+        store.update(d, password: nil)
+        selected = d
+        guard let t = tunnel, !t.isClosed else { return }
+        tunnelDevice = d
+        for ch in channels { ch.stop() }
+        Task {
+            let password = await Task.detached { [store] in store.password(for: d) }.value
+            for ch in channels {
+                await ch.start(tunnel: t, user: d.username, password: password, substream: d.substream, log: { [weak self] s in self?.logSink(s) })
+            }
+        }
+    }
+
     private func tunnelDropped(_ reason: String) {
         tunnelStatus = "disconnected: \(reason)"
         for ch in channels { ch.stop() }

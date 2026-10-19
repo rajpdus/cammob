@@ -23,23 +23,46 @@ public final class DeviceCGI {
         self.tunnel = tunnel; self.user = user; self.password = password; self.log = log
     }
 
-    /// GETs `/cgi-bin/<query>`, answering a Digest challenge once.
+    /// The recorder answered with a non-200 status (the query is unsupported or refused).
+    public struct HTTPStatusError: Error, CustomStringConvertible {
+        public let code: Int
+        public var description: String { "HTTP \(code)" }
+    }
+
+    /// GETs `/cgi-bin/<query>`, answering a Digest challenge once. A reply cut short by
+    /// the tunnel (shorter than its Content-Length) or a timeout is retried.
     public func get(_ query: String) async throws -> String {
         let path = "/cgi-bin/" + query
-        var r = try await fetch(path, authorization: nil)
-        if r.code == 401, let challenge = r.headers["www-authenticate"] {
-            r = try await fetch(path, authorization: digest(challenge, method: "GET", uri: path))
+        var lastError: Error = P2PError.timeout("http")
+        for attempt in 1...3 {
+            do {
+                var r = try await fetch(path, authorization: nil)
+                if r.code == 401, let challenge = r.headers["www-authenticate"] {
+                    r = try await fetch(path, authorization: digest(challenge, method: "GET", uri: path))
+                }
+                guard r.code == 200 else { throw HTTPStatusError(code: r.code) }
+                return r.body
+            } catch let e as HTTPStatusError {
+                throw e
+            } catch {
+                lastError = error
+                log?("http \(query): \(error); attempt \(attempt) of 3")
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
         }
-        guard r.code == 200 else { throw P2PError.protocolError("HTTP \(r.code) for \(query)") }
-        return r.body
+        throw lastError
     }
 
     /// Channels with a camera behind them, in channel order. Names come from the recorder.
+    /// Throws when the recorder could not be read reliably, so a caller keeps its last
+    /// known list instead of replacing it with a partial one.
     public func channels() async throws -> [ChannelInfo] {
         let titles = Self.parseChannelTitle((try? await get("configManager.cgi?action=getConfig&name=ChannelTitle")) ?? "")
-        if let cams = try? await get("LogicDeviceManager.cgi?action=getCameraAll") {
-            let bound = Self.parseCameraAll(cams, titles: titles)
+        do {
+            let bound = Self.parseCameraAll(try await get("LogicDeviceManager.cgi?action=getCameraAll"), titles: titles)
             if !bound.isEmpty { return bound }
+        } catch is HTTPStatusError {
+            // Recorders without a camera registry (analog DVRs): every titled channel is live.
         }
         if !titles.isEmpty { return titles }
         throw P2PError.protocolError("no channel list from device")
@@ -97,6 +120,9 @@ public final class DeviceCGI {
             if let r = Self.parse(raw), r.headers["content-length"].flatMap(Int.init).map({ r.body.utf8.count >= $0 }) ?? false { return r }
         }
         guard let r = Self.parse(raw) else { throw P2PError.protocolError("bad HTTP response") }
+        if let want = r.headers["content-length"].flatMap(Int.init), r.body.utf8.count < want {
+            throw P2PError.protocolError("reply cut short (\(r.body.utf8.count) of \(want) bytes)")
+        }
         log?("http <<< \(r.code) \(r.body.utf8.count) B")
         return r
     }

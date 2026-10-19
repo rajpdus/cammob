@@ -37,7 +37,13 @@ struct ContentView: View {
         .sheet(item: $editing) { d in DeviceSheet(device: d) }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if model.selected != nil {
+                if let d = model.selected {
+                    Picker("Quality", selection: Binding(get: { !d.substream }, set: { model.setHD($0) })) {
+                        Text("SD").tag(false)
+                        Text("HD").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .help("SD streams the recorder's sub stream; HD streams the main stream")
                     Button { model.reconnect() } label: { Label("Reconnect", systemImage: "arrow.clockwise") }
                     Button { model.close(); model.selected = nil } label: { Label("Disconnect", systemImage: "xmark.circle") }
                 }
@@ -81,14 +87,17 @@ struct LiveView: View {
             .padding(.horizontal, 8).padding(.vertical, 4)
             GeometryReader { geo in
                 if let e = enlarged, let ch = model.channels.first(where: { $0.channel == e }) {
-                    ChannelTile(session: ch).onTapGesture(count: 2) { enlarged = nil }
+                    ChannelTile(session: ch)
+                        .onTapGesture { enlarged = nil }
+                        .help("Click to go back to all channels")
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 4) {
                             ForEach(model.channels) { ch in
                                 ChannelTile(session: ch)
                                     .frame(height: max(120, (geo.size.width / CGFloat(columns.count)) * 9 / 16))
-                                    .onTapGesture(count: 2) { enlarged = ch.channel }
+                                    .onTapGesture { enlarged = ch.channel }
+                                    .help("Click to view this channel full size")
                             }
                         }
                         .padding(4)

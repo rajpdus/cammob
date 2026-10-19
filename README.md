@@ -50,8 +50,10 @@ Requires macOS 14 (Sonoma) or later on Apple Silicon.
 3. Enter the device username / password, then **Add**. On the first connection CamMob
    asks the recorder which channels have a camera and uses the recorder's channel names;
    the channel count in the sheet is only used until then.
-4. Select the device in the sidebar. Each channel tile shows its state; double-click a
-   tile to enlarge it. The toolbar's list icon opens the protocol log.
+4. Select the device in the sidebar. Each channel tile shows its state; click a tile to
+   view it full size and click again to go back. **SD / HD** in the toolbar switches every
+   channel between the recorder's sub stream and main stream. The list icon opens the
+   protocol log.
 
 Sub stream is used by default to keep bandwidth low; switch a device to main stream
 from its Edit sheet.
