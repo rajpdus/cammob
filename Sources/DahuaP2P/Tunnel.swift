@@ -105,7 +105,7 @@ public final class Tunnel {
     private(set) public var closeReason: String?
     public var onClosed: ((String) -> Void)?
 
-    static let bindTimeout: TimeInterval = 8
+    static let bindTimeout: TimeInterval = 15
     static let busyRetryWait: TimeInterval = 4
     static let discTimeout: TimeInterval = 2
 
@@ -165,6 +165,7 @@ public final class Tunnel {
             self.lock.withLock { self.realms[id] = realm }
             let ok: Bool = await withCheckedContinuation { cont in
                 self.lock.withLock { self.pendingBinds[id] = cont }
+                self.log?("bind realm \(String(id, radix: 16)) → device port \(port)")
                 self.session.send(PTCP.bindBody(realm: id, port: port))
                 DispatchQueue.global().asyncAfter(deadline: .now() + Tunnel.bindTimeout) {
                     self.lock.lock()

@@ -300,3 +300,19 @@ final class DeviceCGITruncationTests: XCTestCase {
         XCTAssertLessThan(r.body.utf8.count, want)
     }
 }
+
+final class PTCPLegacyStatusTests: XCTestCase {
+    func testStatusWithZeroLengthHeader() {
+        var body = PTCP.typeHeader(PTCP.BodyType.status, len: 0, realm: 0x1234)
+        body.append(Data("CONN".utf8))
+        let s = PTCPSession(transmit: { _ in })
+        var got: PTCP.Body?
+        let lock = NSLock()
+        s.onBody = { b in lock.withLock { got = b } }
+        _ = s.input(PTCP.Packet(sent: 0, recv: 0, pid: 1, lmid: 1, rmid: 1, body: body).encode())
+        Thread.sleep(forTimeInterval: 0.2)
+        guard case .status(let realm, let status)? = lock.withLock({ got }) else { return XCTFail("no status body") }
+        XCTAssertEqual(realm, 0x1234)
+        XCTAssertEqual(status, "CONN")
+    }
+}

@@ -124,6 +124,14 @@ Before that fix, long CGI replies were silently truncated at datagram boundaries
 Some cameras never answer an RTSP `DESCRIBE` for `subtype=1`; the main stream works.
 CamMob retries a failed channel and falls back to the main stream.
 
+## Older firmware (DevVersion 6.6.0): STATUS bodies with a zero length field
+
+A recorder on 6.6.0 firmware (no `randsalt`, no port list in `/info/device`) completes
+the same relay handshake, but its `CONN`/`DISC` STATUS bodies carry `len=0` in the
+12-byte header with the 4-byte text after it. Framing by header length made the text
+empty, so binds looked unanswered. Such a STATUS body is now taken as the rest of the
+datagram. Its bind replies can also take several seconds; the bind timeout is 15 s.
+
 ## Not done / caveats
 
 * Validated live against a CP Plus NVR (fw 6.7.30, InstaOn): relay tunnel, RTSP sub stream,

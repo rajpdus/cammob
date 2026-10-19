@@ -50,6 +50,10 @@ func parseArgs() -> Args {
             case "easy4ip": a.clouds = [.easy4ip]
             default: a.clouds = [.instaon, .easy4ip]
             }
+        case "-D":
+            // Force the request dialect on every cloud (legacy = pre-DMSS request shape).
+            let d: Dialect = (it.next() ?? "") == "legacy" ? .legacy : .dmss
+            a.clouds = a.clouds.map { CloudCredentials(server: $0.server, username: $0.username, userKey: $0.userKey, dialect: d) }
         case "-v": a.verbose = true
         default: usage()
         }

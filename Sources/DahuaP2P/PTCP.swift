@@ -267,7 +267,11 @@ public final class PTCPSession {
         if closedReason != nil { return }
         stats.datagramsIn += 1
         if PTCPSession.trace, !p.body.isEmpty {
-            log?("ptcp in sent=\(p.sent) recv=\(p.recv) len=\(p.body.count) type=0x\(String(p.body[p.body.startIndex], radix: 16)) rcvNext=\(rcvNext)")
+            var extra = ""
+            if p.body[p.body.startIndex] == PTCP.BodyType.status, p.body.count >= 12 {
+                extra = " realm=\(String(p.body.u32(4), radix: 16)) status=\(String(decoding: p.body.dropFirst(12), as: UTF8.self))"
+            }
+            log?("ptcp in sent=\(p.sent) recv=\(p.recv) len=\(p.body.count) type=0x\(String(p.body[p.body.startIndex], radix: 16)) rcvNext=\(rcvNext)\(extra)")
         }
         lastHeardAt = Date()
         lastPeerLmid = p.lmid
@@ -314,7 +318,10 @@ public final class PTCPSession {
                 let b = inbox; inbox = Data(); onBody?(PTCP.parseBody(b)); return
             }
             guard inbox.count >= 12 else { return }
-            let total = 12 + Int(inbox.u32(0) & 0xffffff)
+            var total = 12 + Int(inbox.u32(0) & 0xffffff)
+            // Older firmware sends STATUS with a zero length field and the text after
+            // the header; take the rest of the datagram as that body.
+            if type == PTCP.BodyType.status, total == 12 { total = inbox.count }
             guard inbox.count >= total else { return }
             let b = inbox.subdata(in: inbox.startIndex..<(inbox.startIndex + total))
             inbox = inbox.subdata(in: (inbox.startIndex + total)..<inbox.endIndex)
