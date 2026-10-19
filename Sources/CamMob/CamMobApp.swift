@@ -13,6 +13,12 @@ struct CamMobApp: App {
                 .frame(minWidth: 900, minHeight: 560)
         }
         .windowStyle(.titleBar)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Add Device…") { NotificationCenter.default.post(name: .cammobAddDevice, object: nil) }
+                    .keyboardShortcut("n", modifiers: .command)
+            }
+        }
     }
 }
 

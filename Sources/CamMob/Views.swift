@@ -1,6 +1,8 @@
 import SwiftUI
 import DahuaP2P
 
+extension Notification.Name { static let cammobAddDevice = Notification.Name("cammob.addDevice") }
+
 struct ContentView: View {
     @EnvironmentObject var model: AppModel
     @State private var showAdd = false
@@ -23,9 +25,12 @@ struct ContentView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
-            .toolbar {
-                ToolbarItem { Button { showAdd = true } label: { Label("Add Device", systemImage: "plus") }.keyboardShortcut("n", modifiers: .command) }
+            .safeAreaInset(edge: .bottom) {
+                Button { showAdd = true } label: { Label("Add Device", systemImage: "plus").frame(maxWidth: .infinity) }
+                    .padding(8)
+                    .background(.bar)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .cammobAddDevice)) { _ in showAdd = true }
         } detail: {
             if model.selected == nil {
                 ContentUnavailableView("No device selected", systemImage: "video", description: Text("Add your DVR by its P2P serial number, then select it."))
