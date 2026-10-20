@@ -113,7 +113,7 @@ public final class DeviceCGI {
     private func fetch(_ path: String, authorization: String?) async throws -> Response {
         let conn = try await tunnel.connect(port: UInt32(tunnel.httpPort))
         defer { conn.close() }
-        var req = "GET \(path) HTTP/1.1\r\nHost: device\r\nUser-Agent: CamMob\r\nConnection: close\r\n"
+        var req = "GET \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: CamMob\r\nConnection: close\r\n"
         if let a = authorization { req += "Authorization: \(a)\r\n" }
         req += "\r\n"
         log?("http >>> GET \(path)")

@@ -145,7 +145,7 @@ Task {
             tunnel.close()
         case "stream":
             let conn = try await tunnel.connect(port: UInt32(tunnel.rtspPort))
-            let url = "rtsp://device/cam/realmonitor?channel=\(args.channel)&subtype=\(args.subtype)"
+            let url = "rtsp://127.0.0.1/cam/realmonitor?channel=\(args.channel)&subtype=\(args.subtype)"
             var ro = RTSPClient.Options(url: url, user: args.user, password: args.pass)
             ro.log = args.verbose ? { log($0) } : nil
             let rtsp = RTSPClient(connection: conn, options: ro)

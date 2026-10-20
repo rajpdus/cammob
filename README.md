@@ -113,8 +113,9 @@ It builds on the MIT-licensed work of
 
 ## Status
 
-Verified on a CP Plus NVR (firmware 6.7.30) added by InstaOn serial number, streaming
-H.265 through the relay. On connect, CamMob asks the recorder which channels have a
+Verified on two CP Plus recorders added by InstaOn serial number: an NVR on firmware
+6.7.30 streaming H.265 and a 4-channel DVR on the older 6.6.0 firmware streaming H.264,
+both through the relay. On connect, CamMob asks the recorder which channels have a
 camera and uses the recorder's channel names. Devices registered with Dahua's own
 Easy4ip cloud are supported by the same code path. Not yet implemented: playback, PTZ,
 audio, two-way talk and alarms.

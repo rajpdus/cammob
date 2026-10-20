@@ -132,6 +132,13 @@ the same relay handshake, but its `CONN`/`DISC` STATUS bodies carry `len=0` in t
 empty, so binds looked unanswered. Such a STATUS body is now taken as the rest of the
 datagram. Its bind replies can also take several seconds; the bind timeout is 15 s.
 
+The same firmware answers an authenticated RTSP `DESCRIBE` only after about 12 s when
+the request URL's host is a name (`rtsp://device/...`): it apparently tries to resolve
+it first, and the 6.7.30 NVR never did. With a numeric host (`rtsp://127.0.0.1/...`)
+the reply comes in 0.1 s, so every RTSP URL and the CGI `Host:` header now use
+`127.0.0.1`. The unauthenticated 401 challenge was always immediate, which is why this
+looked like a timeout on the second request only.
+
 ## Not done / caveats
 
 * Validated live against a CP Plus NVR (fw 6.7.30, InstaOn): relay tunnel, RTSP sub stream,

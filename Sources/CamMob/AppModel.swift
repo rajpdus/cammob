@@ -48,7 +48,7 @@ final class ChannelSession: ObservableObject, Identifiable {
         status = "connecting…"
         do {
             let conn = try await tunnel.connect(port: UInt32(tunnel.rtspPort))
-            let url = "rtsp://device/cam/realmonitor?channel=\(channel)&subtype=\(substream ? 1 : 0)"
+            let url = "rtsp://127.0.0.1/cam/realmonitor?channel=\(channel)&subtype=\(substream ? 1 : 0)"
             var o = RTSPClient.Options(url: url, user: user, password: password)
             o.log = log
             let client = RTSPClient(connection: conn, options: o)
